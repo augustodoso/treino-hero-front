@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Treino Hero</title>
+  <link rel="stylesheet" href="./styles/style.css">
+</head>
+<body>
+
+  <header>
+    <div class="logo-container">
+      <img src="./assets/aurevix-logo-blue.png" class="logo-img" alt="Aurevix Logo">
+    </div>
+  </header>
+
+  <main>
+    <section class="card" data-card>
+
+      <!-- ABAS DO JOGO -->
+      <div class="mode-buttons">
+        <button id="mode-classic" class="mode-btn active">Modo Clássico</button>
+        <button id="mode-ia" class="mode-btn">Modo IA</button>
+        <button id="mode-challenge" class="mode-btn">Modo Desafio</button>
+        <button id="btn-ranking" class="mode-btn mode-btn-ghost">Ranking</button>
+      </div>
+
+      <!-- LEVEL UP BADGE -->
+      <div id="level-up-badge" class="level-up hidden">
+        LEVEL UP!
+      </div>
+
+      <!-- HUD XP / LEVEL -->
+      <div class="hud-row">
+        <div class="hud-level">
+          <span class="hud-label">Level</span>
+          <strong id="hud-level-value">1</strong>
+        </div>
+
+        <div class="hud-xp">
+          <div class="hud-xp-header">
+            <span class="hud-label">XP</span>
+            <span id="hud-xp-text">0 / 100</span>
+          </div>
+          <div class="hud-xp-bar">
+            <div id="hud-xp-fill"></div>
+          </div>
+        </div>
+
+        <div class="hud-stats">
+          <div class="hud-stat">
+            <span class="hud-label">Acertos</span>
+            <strong id="hud-correct">0</strong>
+          </div>
+          <div class="hud-stat">
+            <span class="hud-label">Recorde XP</span>
+            <strong id="hud-best-xp">0</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- HUD DESAFIO -->
+      <div class="challenge-hud" id="challenge-hud">
+        <div class="ch-item">
+          <span class="hud-label">Tempo</span>
+          <strong id="ch-timer">60s</strong>
+        </div>
+        <div class="ch-item">
+          <span class="hud-label">Vidas</span>
+          <strong id="ch-lives">❤❤❤</strong>
+        </div>
+        <div class="ch-item">
+          <span class="hud-label">Streak</span>
+          <strong id="ch-streak">0</strong>
+        </div>
+        <div class="ch-item">
+          <span class="hud-label">Melhor Streak</span>
+          <strong id="ch-best-streak">0</strong>
+        </div>
+      </div>
+
+      <!-- DIFICULDADE -->
+      <div class="difficulty-row">
+        <span class="difficulty-label">Dificuldade:</span>
+        <div class="difficulty-tabs">
+          <button class="difficulty-tab" data-diff="easy">Fácil</button>
+          <button class="difficulty-tab active" data-diff="medium">Média</button>
+          <button class="difficulty-tab" data-diff="hard">Difícil</button>
+        </div>
+      </div>
+
+      <!-- IA -->
+      <div class="ia-controls">
+        <label for="ia-theme">Tema da IA:</label>
+        <select id="ia-theme">
+          <option value="fisiologia">Fisiologia</option>
+          <option value="anatomia">Anatomia</option>
+        </select>
+      </div>
+
+      <!-- PERGUNTA -->
+      <div id="question"></div>
+      <div id="choices" class="choices"></div>
+      <div id="explanation" class="explanation"></div>
+
+    </section>
+  </main>
+
+  <footer>
+    <small>Feito por Aurevix • Technology Crafted with Precision</small>
+  </footer>
+
+  <!-- MODAL RANKING -->
+  <div id="ranking-modal" class="modal hidden">
+    <div class="modal-content">
+      <h2>Ranking (Top 10)</h2>
+      <ul id="ranking-list"></ul>
+      <button id="close-ranking" class="close-btn">Fechar</button>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

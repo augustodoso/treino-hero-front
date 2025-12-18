@@ -1,0 +1,20 @@
+# Node / Front
+node_modules/
+dist/
+
+# VSCode
+.vscode/
+
+# Backend (não deve estar neste repositório)
+treino-hero-ia-backend/
+
+# Python (caso algum arquivo caia por engano)
+__pycache__/
+*.pyc
+
+# Ambiente
+.env
+*.env
+
+# Sistema
+.DS_Store

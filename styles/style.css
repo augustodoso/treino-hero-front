@@ -1,0 +1,415 @@
+/* -------- GERAL -------- */
+
+body {
+  margin: 0;
+  padding: 0;
+  background: radial-gradient(circle at top, #0f172a, #020617 70%);
+  color: #f1f5f9;
+  font-family: Arial, sans-serif;
+  min-height: 100vh;
+}
+
+/* -------- LOGO -------- */
+
+.logo-container {
+  display: flex;
+  justify-content: flex-start;
+  padding: 1rem 2rem;
+}
+
+.logo-img {
+  width: 130px;
+  filter: drop-shadow(0 0 8px rgba(59,130,246,0.7));
+}
+
+/* -------- CARD CENTRAL -------- */
+
+.card {
+  margin: 2rem auto;
+  width: 90%;
+  max-width: 900px;
+  padding: 2rem;
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 1.5rem;
+  border: 1px solid rgba(96,165,250,0.3);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 40px rgba(30, 58, 138, 0.5);
+  position: relative;
+}
+
+/* -------- ABAS DE MODO -------- */
+
+.mode-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.mode-btn {
+  background: rgba(15,23,42,0.9);
+  border: 1px solid rgba(96,165,250,0.4);
+  color: #cbd5e1;
+  padding: 0.55rem 1.4rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: 0.2s ease;
+}
+
+.mode-btn:hover {
+  color: white;
+  border-color: rgba(147,197,253,0.7);
+}
+
+.mode-btn.active {
+  background: linear-gradient(to right, #3b82f6, #1d4ed8);
+  color: white;
+  border-color: #60a5fa;
+  box-shadow: 0 0 15px rgba(59,130,246,0.8);
+}
+
+/* Ranking botão com estilo "fantasma" */
+.mode-btn-ghost {
+  background: rgba(15,23,42,0.6);
+  border-style: dashed;
+}
+
+/* -------- HUD XP / LEVEL / STATS -------- */
+
+.hud-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1.6fr) 1fr;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.3rem;
+}
+
+.hud-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+
+.hud-level strong {
+  display: block;
+  font-size: 1.4rem;
+}
+
+.hud-xp {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.hud-xp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.hud-xp-bar {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(15,23,42,0.9);
+  border: 1px solid rgba(148,163,184,0.45);
+  overflow: hidden;
+}
+
+#hud-xp-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(to right, #22c55e, #a3e635);
+  box-shadow: 0 0 10px rgba(34,197,94,0.8);
+  transition: width 0.35s ease;
+}
+
+.hud-stats {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1.2rem;
+}
+
+.hud-stat strong {
+  display: block;
+  font-size: 1rem;
+}
+
+/* -------- HUD MODO DESAFIO -------- */
+
+.challenge-hud {
+  display: none;
+  margin-bottom: 1.1rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(248,250,252,0.06);
+  background: radial-gradient(circle at left, rgba(59,130,246,0.2), transparent 55%);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.challenge-hud .ch-item strong {
+  display: block;
+  font-size: 1rem;
+}
+
+#ch-timer {
+  color: #fbbf24;
+}
+
+#ch-lives {
+  color: #f97373;
+}
+
+/* -------- DIFICULDADE -------- */
+
+.difficulty-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.difficulty-label {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.difficulty-tabs {
+  display: inline-flex;
+  padding: 0.2rem;
+  background: rgba(15,23,42,0.9);
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,0.4);
+}
+
+.difficulty-tab {
+  background: transparent;
+  border: none;
+  color: #9ca3af;
+  padding: 0.35rem 1rem;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: 0.25s ease;
+}
+
+.difficulty-tab:hover {
+  color: white;
+}
+
+.difficulty-tab.active {
+  background: linear-gradient(to right, #3b82f6, #1d4ed8);
+  color: white;
+  box-shadow: 0 0 12px rgba(59,130,246,0.7);
+}
+
+/* -------- CONTROLES IA -------- */
+
+.ia-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.ia-controls label {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.ia-controls select {
+  background: #020617;
+  border: 1px solid rgba(148,163,184,0.6);
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  color: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+  appearance: none;
+  box-shadow: 0 0 8px rgba(59,130,246,0.25);
+  transition: 0.2s ease;
+}
+
+.ia-controls select:hover {
+  border-color: #60a5fa;
+  box-shadow: 0 0 10px rgba(59,130,246,0.5);
+}
+
+/* -------- PERGUNTAS -------- */
+
+#question {
+  margin-top: 0.5rem;
+  margin-bottom: 1.2rem;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.choice-btn {
+  padding: 0.7rem 1rem;
+  text-align: left;
+  font-size: 0.95rem;
+  border-radius: 0.8rem;
+  background: rgba(30,41,59,0.6);
+  border: 1px solid rgba(96,165,250,0.3);
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: 0.25s ease;
+}
+
+.choice-btn:hover {
+  background: rgba(59,130,246,0.25);
+}
+
+.choice-btn.correct {
+  background: rgba(34,197,94,0.35);
+  border-color: rgba(34,197,94,0.8);
+}
+
+.choice-btn.wrong {
+  background: rgba(239,68,68,0.35);
+  border-color: rgba(239,68,68,0.8);
+}
+
+.choice-btn.disabled {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* -------- EXPLICAÇÃO -------- */
+
+.explanation {
+  margin-top: 1rem;
+  opacity: 0.9;
+  font-size: 0.88rem;
+  white-space: pre-wrap;
+}
+
+/* -------- FOOTER -------- */
+
+footer {
+  margin-top: 1.5rem;
+  text-align: center;
+  padding-bottom: 1rem;
+}
+
+footer small {
+  opacity: 0.85;
+  font-size: 0.85rem;
+}
+
+/* -------- MODAL RANKING -------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  background: #020617;
+  border-radius: 1.2rem;
+  border: 1px solid rgba(96,165,250,0.4);
+  padding: 1.5rem 1.8rem;
+  width: 90%;
+  max-width: 420px;
+  box-shadow: 0 12px 40px rgba(15,23,42,0.9);
+}
+
+.modal-content h2 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+}
+
+#ranking-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+#ranking-list li {
+  padding: 0.55rem 0.75rem;
+  margin-bottom: 0.4rem;
+  border-radius: 0.75rem;
+  background: rgba(15,23,42,0.9);
+  border: 1px solid rgba(148,163,184,0.3);
+  font-size: 0.9rem;
+}
+
+#ranking-list li strong {
+  color: #e5e7eb;
+}
+
+#ranking-list li small {
+  display: block;
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.close-btn {
+  margin-top: 1rem;
+  width: 100%;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(96,165,250,0.6);
+  background: linear-gradient(to right, #1e293b, #0f172a);
+  color: #e5e7eb;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: 0.2s ease;
+}
+
+.close-btn:hover {
+  border-color: #60a5fa;
+  box-shadow: 0 0 12px rgba(59,130,246,0.7);
+}
+
+/* -------- LEVEL UP BADGE (efeito C) -------- */
+
+.level-up {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(to right, #3b82f6, #60a5fa);
+  padding: 0.6rem 1.4rem;
+  border-radius: 999px;
+  color: white;
+  font-weight: bold;
+  font-size: 1.1rem;
+  opacity: 0;
+  z-index: 80;
+  box-shadow: 0 0 12px rgba(59,130,246,0.8);
+  transition: opacity 0.3s ease, transform 0.4s ease;
+}
+
+.level-up.show {
+  opacity: 1;
+  transform: translate(-50%, -55px);
+}
+
+.level-up.hidden {
+  display: none;
+}
