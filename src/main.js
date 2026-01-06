@@ -25,13 +25,18 @@ const CHALLENGE_LIVES_START = 3;
 ========================= */
 
 const initialState = {
-  mode: "classic",         // classic | ia | challenge
+  mode: "classic", // classic | ia | challenge
   level: 1,
   xp: 0,
-  energy: 10,
+  correct: 0,
+  bestXp: 0,
+  streak: 0,
+  bestStreak: 0,
   lives: CHALLENGE_LIVES_START,
   questionIndex: 0,
   currentQuestion: null,
+  difficulty: "medium",
+  iaTheme: "fisiologia",
 };
 
 let state = { ...initialState };
@@ -41,58 +46,86 @@ let timeLeft = CHALLENGE_DURATION;
 
 /* =========================
    REFERÊNCIAS DO DOM
-   (preenchidas só depois do DOM pronto)
+   (preenchidas depois do DOM pronto)
 ========================= */
 
+// HUD principal
+let levelEl;
+let xpTextEl;
+let xpFillEl;
+let correctEl;
+let bestXpEl;
+
+// HUD desafio
+let challengeHudEl;
+let chTimerEl;
+let chLivesEl;
+let chStreakEl;
+let chBestStreakEl;
+
+// Pergunta / opções / explicação
 let questionEl;
 let choicesEl;
 let explanationEl;
 
+// Botões de modo
 let btnClassic;
 let btnIA;
 let btnChallenge;
+let btnRanking;
 
-let hudLevel;
-let hudXP;
-let hudEnergy;
-let hudLives;
-let hudTimer;
+// Dificuldade e IA
+let diffButtons;
+let iaThemeSelect;
 
-/**
- * Busca os elementos do DOM depois do carregamento.
- * Se algum não existir, só registra erro no console (não quebra o jogo).
- */
+// Modal ranking
+let rankingModal;
+let closeRankingBtn;
+let rankingList;
+
 function setupDomRefs() {
+  // HUD principal
+  levelEl = document.getElementById("hud-level-value");
+  xpTextEl = document.getElementById("hud-xp-text");
+  xpFillEl = document.getElementById("hud-xp-fill");
+  correctEl = document.getElementById("hud-correct");
+  bestXpEl = document.getElementById("hud-best-xp");
+
+  // HUD desafio
+  challengeHudEl = document.getElementById("challenge-hud");
+  chTimerEl = document.getElementById("ch-timer");
+  chLivesEl = document.getElementById("ch-lives");
+  chStreakEl = document.getElementById("ch-streak");
+  chBestStreakEl = document.getElementById("ch-best-streak");
+
+  // Pergunta
   questionEl = document.getElementById("question");
   choicesEl = document.getElementById("choices");
   explanationEl = document.getElementById("explanation");
 
+  // Modo de jogo
   btnClassic = document.getElementById("mode-classic");
   btnIA = document.getElementById("mode-ia");
   btnChallenge = document.getElementById("mode-challenge");
+  btnRanking = document.getElementById("btn-ranking");
 
-  hudLevel = document.getElementById("hud-level");
-  hudXP = document.getElementById("hud-xp");
-  hudEnergy = document.getElementById("hud-energy");
-  hudLives = document.getElementById("hud-lives");
-  hudTimer = document.getElementById("hud-timer");
+  // Dificuldade / IA
+  diffButtons = Array.from(document.querySelectorAll(".difficulty-tab"));
+  iaThemeSelect = document.getElementById("ia-theme");
 
-  // Debug leve: se algo importante não existir, avisa
-  if (!questionEl || !choicesEl) {
-    console.warn(
-      "[Treino Hero] Elementos principais não encontrados (question / choices). " +
-        "Confere se os IDs existem no index.html."
-    );
-  }
+  // Ranking
+  rankingModal = document.getElementById("ranking-modal");
+  closeRankingBtn = document.getElementById("close-ranking");
+  rankingList = document.getElementById("ranking-list");
 }
 
 /* =========================
-   PERSISTÊNCIA (LOCALSTORAGE)
+   PERSISTÊNCIA
 ========================= */
 
 function saveState() {
   try {
-    localStorage.setItem("treinoHero", JSON.stringify(state));
+    localStorage.setItem("treinoHero_v2", JSON.stringify(state));
   } catch (err) {
     console.warn("Não foi possível salvar o estado:", err);
   }
@@ -100,11 +133,9 @@ function saveState() {
 
 function loadState() {
   try {
-    const saved = localStorage.getItem("treinoHero");
+    const saved = localStorage.getItem("treinoHero_v2");
     if (saved) {
       const parsed = JSON.parse(saved);
-
-      // Faz um merge seguro com o estado inicial
       state = { ...initialState, ...parsed };
     }
   } catch (err) {
@@ -114,33 +145,36 @@ function loadState() {
 }
 
 /* =========================
-   HUD (LEVEL / XP / ENERGIA / VIDAS / TEMPO)
+   HUD (LEVEL / XP / DESAFIO)
 ========================= */
 
 function updateHUD() {
-  // Cada campo só é atualizado se o elemento existir,
-  // assim não quebra se algum ID estiver diferente no HTML.
+  // HUD principal
+  if (levelEl) levelEl.textContent = state.level;
 
-  if (hudLevel) {
-    hudLevel.textContent = state.level;
+  if (xpTextEl) xpTextEl.textContent = `${state.xp} / ${XP_PER_LEVEL}`;
+
+  if (xpFillEl) {
+    const pct = Math.min(100, (state.xp / XP_PER_LEVEL) * 100);
+    xpFillEl.style.width = `${pct}%`;
   }
 
-  if (hudXP) {
-    hudXP.textContent = `${state.xp} / ${XP_PER_LEVEL}`;
+  if (correctEl) correctEl.textContent = state.correct;
+  if (bestXpEl) bestXpEl.textContent = state.bestXp;
+
+  // HUD desafio
+  if (challengeHudEl) {
+    if (state.mode === "challenge") {
+      challengeHudEl.classList.add("active");
+    } else {
+      challengeHudEl.classList.remove("active");
+    }
   }
 
-  if (hudEnergy) {
-    hudEnergy.textContent = state.energy;
-  }
-
-  if (hudLives) {
-    hudLives.textContent = state.lives;
-  }
-
-  if (hudTimer) {
-    hudTimer.textContent =
-      state.mode === "challenge" ? `${timeLeft}s` : "--";
-  }
+  if (chTimerEl) chTimerEl.textContent = `${timeLeft}s`;
+  if (chLivesEl) chLivesEl.textContent = "❤".repeat(state.lives);
+  if (chStreakEl) chStreakEl.textContent = state.streak;
+  if (chBestStreakEl) chBestStreakEl.textContent = state.bestStreak;
 }
 
 /* =========================
@@ -157,7 +191,10 @@ async function getIAQuestion() {
     const response = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topic: "fisiologia", difficulty: "medium" }),
+      body: JSON.stringify({
+        topic: state.iaTheme,
+        difficulty: state.difficulty,
+      }),
     });
 
     if (!response.ok) {
@@ -185,16 +222,16 @@ async function getIAQuestion() {
 
 async function renderQuestion() {
   if (!questionEl || !choicesEl) {
-    console.warn(
-      "[Treino Hero] Não há elementos de pergunta/opções no DOM."
-    );
+    console.warn("[Treino Hero] Elementos de pergunta não encontrados.");
     return;
   }
 
-  explanationEl && (explanationEl.textContent = "");
+  // reseta texto
+  questionEl.textContent = "";
   choicesEl.innerHTML = "";
+  if (explanationEl) explanationEl.textContent = "";
 
-  // Escolhe fonte de pergunta
+  // escolhe fonte
   if (state.mode === "ia") {
     state.currentQuestion = await getIAQuestion();
   } else {
@@ -202,7 +239,6 @@ async function renderQuestion() {
   }
 
   const q = state.currentQuestion;
-
   if (!q) {
     questionEl.textContent = "Não há perguntas disponíveis.";
     return;
@@ -230,16 +266,33 @@ function handleAnswer(index) {
   const correct = q.correctIndex === index;
 
   if (correct) {
+    state.correct += 1;
     state.xp += XP_PER_CORRECT;
+    state.streak += 1;
+
     if (state.xp >= XP_PER_LEVEL) {
       state.level += 1;
       state.xp = 0;
+      // poderia mostrar o badge aqui
+      // console.log("LEVEL UP!");
     }
-  } else if (state.mode === "challenge") {
-    state.lives -= 1;
-    if (state.lives <= 0) {
-      endChallenge();
-      return;
+
+    if (state.xp > state.bestXp) {
+      state.bestXp = state.xp;
+    }
+
+    if (state.streak > state.bestStreak) {
+      state.bestStreak = state.streak;
+    }
+  } else {
+    state.streak = 0;
+
+    if (state.mode === "challenge") {
+      state.lives -= 1;
+      if (state.lives <= 0) {
+        endChallenge();
+        return;
+      }
     }
   }
 
@@ -251,10 +304,9 @@ function handleAnswer(index) {
   saveState();
   updateHUD();
 
-  // Próxima pergunta depois de 1s
   setTimeout(() => {
     renderQuestion();
-  }, 1000);
+  }, 800);
 }
 
 /* =========================
@@ -264,8 +316,8 @@ function handleAnswer(index) {
 function setMode(mode) {
   state.mode = mode;
   state.questionIndex = 0;
+  state.streak = 0;
 
-  // Reseta desafio se sair / entrar
   clearInterval(challengeTimer);
   timeLeft = CHALLENGE_DURATION;
   state.lives = CHALLENGE_LIVES_START;
@@ -285,9 +337,7 @@ function startChallenge() {
 
   challengeTimer = setInterval(() => {
     timeLeft -= 1;
-    if (timeLeft < 0) {
-      timeLeft = 0;
-    }
+    if (timeLeft < 0) timeLeft = 0;
 
     updateHUD();
 
@@ -304,21 +354,63 @@ function endChallenge() {
 }
 
 /* =========================
+   DIFICULDADE E IA
+========================= */
+
+function setupDifficulty() {
+  if (!diffButtons) return;
+
+  diffButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      diffButtons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.difficulty = btn.dataset.diff || "medium";
+      saveState();
+    });
+  });
+}
+
+function setupIATheme() {
+  if (!iaThemeSelect) return;
+
+  iaThemeSelect.value = state.iaTheme;
+
+  iaThemeSelect.addEventListener("change", () => {
+    state.iaTheme = iaThemeSelect.value;
+    saveState();
+  });
+}
+
+/* =========================
+   RANKING (simples dummy)
+========================= */
+
+function setupRanking() {
+  if (!btnRanking || !rankingModal || !closeRankingBtn || !rankingList) return;
+
+  btnRanking.addEventListener("click", () => {
+    rankingList.innerHTML = "";
+    const item = document.createElement("li");
+    item.textContent = `Você — Level ${state.level}, XP ${state.xp}, melhor streak ${state.bestStreak}`;
+    rankingList.appendChild(item);
+
+    rankingModal.classList.remove("hidden");
+  });
+
+  closeRankingBtn.addEventListener("click", () => {
+    rankingModal.classList.add("hidden");
+  });
+}
+
+/* =========================
    EVENTOS DOS BOTÕES
 ========================= */
 
-function setupEvents() {
-  if (btnClassic) {
-    btnClassic.addEventListener("click", () => setMode("classic"));
-  }
-
-  if (btnIA) {
-    btnIA.addEventListener("click", () => setMode("ia"));
-  }
-
-  if (btnChallenge) {
+function setupModeButtons() {
+  if (btnClassic) btnClassic.addEventListener("click", () => setMode("classic"));
+  if (btnIA) btnIA.addEventListener("click", () => setMode("ia"));
+  if (btnChallenge)
     btnChallenge.addEventListener("click", () => setMode("challenge"));
-  }
 }
 
 /* =========================
@@ -326,14 +418,18 @@ function setupEvents() {
 ========================= */
 
 function initGame() {
-  setupDomRefs();  // pega os elementos DEPOIS do DOM pronto
+  setupDomRefs();
   loadState();
+  setupModeButtons();
+  setupDifficulty();
+  setupIATheme();
+  setupRanking();
   updateHUD();
-  setupEvents();
   renderQuestion();
 }
 
-// Garante que tudo só rode depois do DOM pronto
+// Como o script está no final do body, o DOM já está pronto,
+// mas para garantir:
 window.addEventListener("DOMContentLoaded", () => {
   try {
     initGame();
