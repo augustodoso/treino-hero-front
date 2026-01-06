@@ -148,7 +148,7 @@ function loadState() {
 ========================= */
 
 function updateHUD() {
-  // Garante que as refs existem (se vieram null por algum motivo)
+  // Se por algum motivo ainda está sem refs, tenta pegar de novo
   if (!levelEl && !xpTextEl && !xpFillEl) {
     setupDomRefs();
   }
@@ -286,8 +286,6 @@ function handleAnswer(index) {
     if (state.xp >= XP_PER_LEVEL) {
       state.level += 1;
       state.xp = 0;
-      // Aqui você pode disparar o LEVEL UP badge
-      // console.log("LEVEL UP!");
     }
 
     if (state.xp > state.bestXp) {
