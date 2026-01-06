@@ -5,84 +5,102 @@ import { QUIZ } from "./quiz.js";
    CONFIGURAÇÕES GERAIS
 ========================= */
 
-// Detecta ambiente
+// Detecta ambiente (local x deploy)
 const isLocal =
   location.hostname === "127.0.0.1" || location.hostname === "localhost";
 
-// URL do backend
+// URL do backend (IA)
 const API_URL = isLocal
   ? "http://127.0.0.1:8000/generate-question"
   : "https://treino-hero-ia-backend.onrender.com/generate-question";
 
-// Configurações do jogo
+// Configurações de XP / Level / Desafio
 const XP_PER_CORRECT = 10;
 const XP_PER_LEVEL = 100;
 const CHALLENGE_DURATION = 60; // segundos
 const CHALLENGE_LIVES_START = 3;
 
+// Storage
+const STORAGE_KEY = "treinoHero_stats";
+
 /* =========================
    ESTADO GLOBAL
 ========================= */
 
-let state = {
-  mode: "classic",
+const DEFAULT_STATE = {
+  mode: "classic",      // classic | ia | challenge
   level: 1,
   xp: 0,
   energy: 10,
   lives: CHALLENGE_LIVES_START,
   questionIndex: 0,
   currentQuestion: null,
+  streak: 0,
+  bestStreak: 0,
 };
 
-let challengeTimer = null;
+let state = { ...DEFAULT_STATE };
 let timeLeft = CHALLENGE_DURATION;
+let challengeTimer = null;
 
 /* =========================
-   ELEMENTOS DOM
+   REFERÊNCIAS DE DOM
+   (serão preenchidas no init)
 ========================= */
 
-const questionEl = document.getElementById("question");
-const choicesEl = document.getElementById("choices");
-const explanationEl = document.getElementById("explanation");
+let questionEl;
+let choicesEl;
+let explanationEl;
 
-// Botões de modo
-const btnClassic = document.getElementById("mode-classic");
-const btnIA = document.getElementById("mode-ia");
-const btnChallenge = document.getElementById("mode-challenge");
+let btnClassic;
+let btnIA;
+let btnChallenge;
 
-// HUD
-const hudLevel = document.getElementById("hud-level");
-const hudXP = document.getElementById("hud-xp");
-const hudEnergy = document.getElementById("hud-energy");
-const hudLives = document.getElementById("hud-lives");
-const hudTimer = document.getElementById("hud-timer");
+let hudLevel;
+let hudXP;
+let hudEnergy;
+let hudLives;
+let hudTimer;
 
 /* =========================
-   UTILIDADES
+   STORAGE
 ========================= */
 
 function saveState() {
-  localStorage.setItem("treinoHero", JSON.stringify(state));
-}
-
-function loadState() {
-  const saved = localStorage.getItem("treinoHero");
-  if (saved) {
-    try {
-      state = JSON.parse(saved);
-    } catch (e) {
-      console.error("Erro ao carregar state salvo", e);
-    }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (err) {
+    console.warn("Não foi possível salvar no localStorage:", err);
   }
 }
 
+function loadState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return;
+    const parsed = JSON.parse(saved);
+    // Faz merge para garantir que nada fique undefined
+    state = { ...DEFAULT_STATE, ...parsed };
+  } catch (err) {
+    console.warn("Não foi possível carregar estado salvo:", err);
+    state = { ...DEFAULT_STATE };
+  }
+}
+
+/* =========================
+   HUD
+========================= */
+
 function updateHUD() {
-  // protege contra elementos que não existem no HTML
-  if (hudLevel) hudLevel.textContent = state.level;
-  if (hudXP) hudXP.textContent = state.xp;
-  if (hudEnergy) hudEnergy.textContent = state.energy;
-  if (hudLives) hudLives.textContent = state.lives;
-  if (hudTimer) hudTimer.textContent = timeLeft;
+  try {
+    if (hudLevel) hudLevel.textContent = state.level;
+    if (hudXP) hudXP.textContent = state.xp;
+    if (hudEnergy) hudEnergy.textContent = state.energy;
+    if (hudLives) hudLives.textContent = state.lives;
+    if (hudTimer) hudTimer.textContent = timeLeft;
+  } catch (err) {
+    console.error("Erro ao atualizar HUD:", err);
+  }
 }
 
 /* =========================
@@ -90,21 +108,18 @@ function updateHUD() {
 ========================= */
 
 function getClassicQuestion() {
-  return QUIZ[state.questionIndex % QUIZ.length];
+  // garante que sempre caia dentro do array
+  const index = state.questionIndex % QUIZ.length;
+  return QUIZ[index];
 }
 
 async function getIAQuestion() {
   try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      // se quiser enviar tema/dificuldade no futuro, coloca aqui
-      body: JSON.stringify({}),
-    });
+    const res = await fetch(API_URL, { method: "POST" });
 
-    if (!res.ok) throw new Error("Erro ao buscar questão no backend");
+    if (!res.ok) {
+      throw new Error("Erro ao chamar backend IA");
+    }
 
     const data = await res.json();
 
@@ -115,69 +130,100 @@ async function getIAQuestion() {
       explanation: data.explanation || "",
     };
   } catch (err) {
-    console.error("Erro no modo IA, caindo pro quiz local:", err);
-    alert("Erro ao buscar pergunta IA 😢 Usando pergunta local.");
+    console.error("Erro ao buscar pergunta IA, caindo para pergunta local:", err);
+    // fallback para pergunta local pra não quebrar o jogo
     return getClassicQuestion();
   }
 }
 
 /* =========================
-   RENDER
+   RENDERIZAÇÃO DA PERGUNTA
 ========================= */
 
 async function renderQuestion() {
-  if (!questionEl || !choicesEl || !explanationEl) {
-    console.error("Elementos principais do quiz não encontrados no HTML.");
-    return;
-  }
-
-  explanationEl.textContent = "";
-  choicesEl.innerHTML = "";
-
-  if (state.mode === "ia") {
-    state.currentQuestion = await getIAQuestion();
-  } else {
-    state.currentQuestion = getClassicQuestion();
-  }
-
-  questionEl.textContent = state.currentQuestion.question;
-
-  state.currentQuestion.options.forEach((opt, index) => {
-    const btn = document.createElement("button");
-    btn.textContent = opt;
-    btn.className = "choice-btn";
-    btn.addEventListener("click", () => handleAnswer(index));
-    choicesEl.appendChild(btn);
-  });
-}
-
-function handleAnswer(index) {
-  const correct = state.currentQuestion.correctIndex === index;
-
-  if (correct) {
-    state.xp += XP_PER_CORRECT;
-
-    if (state.xp >= XP_PER_LEVEL) {
-      state.level += 1;
-      state.xp = 0;
-    }
-  } else if (state.mode === "challenge") {
-    state.lives -= 1;
-    if (state.lives <= 0) {
-      endChallenge();
+  try {
+    if (!questionEl || !choicesEl || !explanationEl) {
+      console.warn("Elementos de pergunta não encontrados no DOM.");
       return;
     }
+
+    explanationEl.textContent = "";
+    choicesEl.innerHTML = "";
+
+    if (state.mode === "ia") {
+      state.currentQuestion = await getIAQuestion();
+    } else {
+      state.currentQuestion = getClassicQuestion();
+    }
+
+    if (!state.currentQuestion) {
+      console.warn("Nenhuma pergunta disponível.");
+      return;
+    }
+
+    questionEl.textContent = state.currentQuestion.question || "Pergunta indisponível";
+
+    state.currentQuestion.options.forEach((opt, index) => {
+      const btn = document.createElement("button");
+      btn.textContent = opt;
+      btn.className = "choice-btn";
+      btn.addEventListener("click", () => handleAnswer(index));
+      choicesEl.appendChild(btn);
+    });
+  } catch (err) {
+    console.error("Erro ao renderizar pergunta:", err);
   }
+}
 
-  explanationEl.textContent = state.currentQuestion.explanation || "";
+/* =========================
+   RESPOSTA DO USUÁRIO
+========================= */
 
-  state.questionIndex += 1;
-  saveState();
-  updateHUD();
+function handleAnswer(index) {
+  try {
+    if (!state.currentQuestion) return;
 
-  setTimeout(() => {
-    renderQuestion();
-  }, 1000);
+    const correct = state.currentQuestion.correctIndex === index;
+
+    if (correct) {
+      state.xp += XP_PER_CORRECT;
+      state.streak += 1;
+      if (state.streak > state.bestStreak) {
+        state.bestStreak = state.streak;
+      }
+
+      if (state.xp >= XP_PER_LEVEL) {
+        state.level += 1;
+        state.xp = 0;
+      }
+    } else {
+      state.streak = 0;
+
+      if (state.mode === "challenge") {
+        state.lives -= 1;
+        if (state.lives <= 0) {
+          endChallenge();
+          return;
+        }
+      }
+    }
+
+    if (explanationEl) {
+      explanationEl.textContent =
+        state.currentQuestion.explanation || "";
+    }
+
+    state.questionIndex += 1;
+    saveState();
+    updateHUD();
+
+    // pequena pausa para o jogador ver o feedback
+    setTimeout(() => {
+      renderQuestion();
+    }, 800);
+  } catch (err) {
+    console.error("Erro ao processar resposta:", err);
+  }
 }
 
 /* =========================
@@ -185,33 +231,41 @@ function handleAnswer(index) {
 ========================= */
 
 function setMode(mode) {
-  state.mode = mode;
-  state.questionIndex = 0;
+  try {
+    state.mode = mode;
+    state.questionIndex = 0;
+    state.streak = 0;
 
-  // limpa timer do desafio se estiver rolando
-  if (challengeTimer) {
-    clearInterval(challengeTimer);
-    challengeTimer = null;
+    if (challengeTimer) {
+      clearInterval(challengeTimer);
+      challengeTimer = null;
+    }
+
+    if (mode === "challenge") {
+      startChallenge();
+    } else {
+      // reset de coisas específicas do desafio
+      timeLeft = CHALLENGE_DURATION;
+      state.lives = CHALLENGE_LIVES_START;
+    }
+
+    saveState();
+    updateHUD();
+    renderQuestion();
+  } catch (err) {
+    console.error("Erro ao mudar modo:", err);
   }
-
-  if (mode === "challenge") {
-    startChallenge();
-  } else {
-    timeLeft = CHALLENGE_DURATION;
-    state.lives = CHALLENGE_LIVES_START;
-  }
-
-  saveState();
-  updateHUD();
-  renderQuestion();
 }
 
 function startChallenge() {
   timeLeft = CHALLENGE_DURATION;
   state.lives = CHALLENGE_LIVES_START;
 
+  updateHUD();
+
   challengeTimer = setInterval(() => {
     timeLeft -= 1;
+    if (timeLeft < 0) timeLeft = 0;
     updateHUD();
 
     if (timeLeft <= 0) {
@@ -225,32 +279,85 @@ function endChallenge() {
     clearInterval(challengeTimer);
     challengeTimer = null;
   }
-
   alert("Fim do desafio! 💪");
   setMode("classic");
 }
 
 /* =========================
-   EVENTOS
+   INICIALIZAÇÃO (DOM READY)
 ========================= */
 
-// só registra se existir no HTML (evita erro em páginas sem esses botões)
-if (btnClassic) {
-  btnClassic.addEventListener("click", () => setMode("classic"));
+function initGame() {
+  // Elementos de pergunta
+  questionEl = document.getElementById("question");
+  choicesEl = document.getElementById("choices");
+  explanationEl = document.getElementById("explanation");
+
+  if (!questionEl || !choicesEl || !explanationEl) {
+    console.warn(
+      "Alguns elementos do quiz (#question, #choices, #explanation) não foram encontrados. Verifique os IDs no index.html."
+    );
+  }
+
+  // Botões de modo
+  btnClassic = document.getElementById("mode-classic");
+  btnIA = document.getElementById("mode-ia");
+  btnChallenge = document.getElementById("mode-challenge");
+
+  if (btnClassic) {
+    btnClassic.addEventListener("click", () => setMode("classic"));
+  } else {
+    console.warn("Botão #mode-classic não encontrado.");
+  }
+
+  if (btnIA) {
+    btnIA.addEventListener("click", () => setMode("ia"));
+  } else {
+    console.warn("Botão #mode-ia não encontrado.");
+  }
+
+  if (btnChallenge) {
+    btnChallenge.addEventListener("click", () => setMode("challenge"));
+  } else {
+    console.warn("Botão #mode-challenge não encontrado.");
+  }
+
+  // HUD – tenta vários IDs, mas sempre protege com if
+  hudLevel =
+    document.getElementById("hud-level") ||
+    document.getElementById("level-value") ||
+    document.getElementById("level");
+
+  hudXP =
+    document.getElementById("hud-xp") ||
+    document.getElementById("xp-value") ||
+    document.getElementById("xp");
+
+  hudEnergy =
+    document.getElementById("hud-energy") ||
+    document.getElementById("energy-value") ||
+    document.getElementById("energy");
+
+  hudLives =
+    document.getElementById("hud-lives") ||
+    document.getElementById("lives-value") ||
+    document.getElementById("lives");
+
+  hudTimer =
+    document.getElementById("hud-timer") ||
+    document.getElementById("timer-value") ||
+    document.getElementById("timer");
+
+  loadState();
+  updateHUD();
+  renderQuestion();
 }
 
-if (btnIA) {
-  btnIA.addEventListener("click", () => setMode("ia"));
-}
-
-if (btnChallenge) {
-  btnChallenge.addEventListener("click", () => setMode("challenge"));
-}
-
-/* =========================
-   INIT
-========================= */
-
-loadState();
-updateHUD();
-renderQuestion();
+// Só roda depois do DOM estar pronto
+window.addEventListener("DOMContentLoaded", () => {
+  try {
+    initGame();
+  } catch (err) {
+    console.error("Erro na inicialização do jogo:", err);
+  }
+});
