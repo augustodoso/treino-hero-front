@@ -1,3 +1,4 @@
+// src/main.js
 import { QUIZ } from "./quiz.js";
 
 /* =========================
@@ -16,7 +17,7 @@ const API_URL = isLocal
 // Configurações do jogo
 const XP_PER_CORRECT = 10;
 const XP_PER_LEVEL = 100;
-const CHALLENGE_DURATION = 60;
+const CHALLENGE_DURATION = 60; // segundos
 const CHALLENGE_LIVES_START = 3;
 
 /* =========================
@@ -44,10 +45,12 @@ const questionEl = document.getElementById("question");
 const choicesEl = document.getElementById("choices");
 const explanationEl = document.getElementById("explanation");
 
+// Botões de modo
 const btnClassic = document.getElementById("mode-classic");
 const btnIA = document.getElementById("mode-ia");
 const btnChallenge = document.getElementById("mode-challenge");
 
+// HUD
 const hudLevel = document.getElementById("hud-level");
 const hudXP = document.getElementById("hud-xp");
 const hudEnergy = document.getElementById("hud-energy");
@@ -67,70 +70,53 @@ function loadState() {
   if (saved) {
     try {
       state = JSON.parse(saved);
-    } catch {
-      // se der ruim no parse, ignora
+    } catch (e) {
+      console.error("Erro ao carregar state salvo", e);
     }
   }
 }
 
-function safeSetText(el, value) {
-  if (!el) return;
-  el.textContent = String(value);
-}
-
-function safeSetHTML(el, value) {
-  if (!el) return;
-  el.innerHTML = value;
-}
-
 function updateHUD() {
-  // Nunca quebra se um ID não existir no HTML
-  safeSetText(hudLevel, state.level);
-  safeSetText(hudXP, state.xp);
-  safeSetText(hudEnergy, state.energy);
-
-  // Só existem em alguns layouts/modos
-  safeSetText(hudLives, state.lives);
-  safeSetText(hudTimer, timeLeft);
+  // protege contra elementos que não existem no HTML
+  if (hudLevel) hudLevel.textContent = state.level;
+  if (hudXP) hudXP.textContent = state.xp;
+  if (hudEnergy) hudEnergy.textContent = state.energy;
+  if (hudLives) hudLives.textContent = state.lives;
+  if (hudTimer) hudTimer.textContent = timeLeft;
 }
 
 /* =========================
    PERGUNTAS
 ========================= */
 
-function normalizeQuestion(q) {
-  // garante compatibilidade entre QUIZ antigo e IA
-  if (!q) return null;
-
-  const question = q.question ?? q.pergunta ?? "";
-  const options = q.options ?? q.choices ?? q.alternatives ?? [];
-  const correctIndex =
-    q.correctIndex ?? q.correct_index ?? q.answerIndex ?? 0;
-  const explanation = q.explanation ?? q.explicacao ?? "";
-
-  return { question, options, correctIndex, explanation };
-}
-
 function getClassicQuestion() {
-  const raw = QUIZ[state.questionIndex % QUIZ.length];
-  return normalizeQuestion(raw);
+  return QUIZ[state.questionIndex % QUIZ.length];
 }
 
 async function getIAQuestion() {
   try {
-    const res = await fetch(API_URL, { method: "POST" });
-    if (!res.ok) throw new Error("Erro no backend");
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      // se quiser enviar tema/dificuldade no futuro, coloca aqui
+      body: JSON.stringify({}),
+    });
+
+    if (!res.ok) throw new Error("Erro ao buscar questão no backend");
 
     const data = await res.json();
-    return normalizeQuestion({
+
+    return {
       question: data.question,
       options: data.options,
-      correct_index: data.correct_index,
+      correctIndex: data.correct_index,
       explanation: data.explanation || "",
-    });
+    };
   } catch (err) {
-    console.error(err);
-    alert("Erro ao buscar pergunta IA 😢 Voltando pro modo clássico.");
+    console.error("Erro no modo IA, caindo pro quiz local:", err);
+    alert("Erro ao buscar pergunta IA 😢 Usando pergunta local.");
     return getClassicQuestion();
   }
 }
@@ -140,26 +126,18 @@ async function getIAQuestion() {
 ========================= */
 
 async function renderQuestion() {
-  // se seu HTML não tiver esses IDs, não trava
-  safeSetText(explanationEl, "");
-  safeSetHTML(choicesEl, "");
-
-  if (!questionEl || !choicesEl) {
-    console.error(
-      "Faltando elementos no HTML: precisa ter #question e #choices."
-    );
+  if (!questionEl || !choicesEl || !explanationEl) {
+    console.error("Elementos principais do quiz não encontrados no HTML.");
     return;
   }
+
+  explanationEl.textContent = "";
+  choicesEl.innerHTML = "";
 
   if (state.mode === "ia") {
     state.currentQuestion = await getIAQuestion();
   } else {
     state.currentQuestion = getClassicQuestion();
-  }
-
-  if (!state.currentQuestion) {
-    questionEl.textContent = "Não foi possível carregar uma pergunta 😢";
-    return;
   }
 
   questionEl.textContent = state.currentQuestion.question;
@@ -174,39 +152,54 @@ async function renderQuestion() {
 }
 
 function handleAnswer(index) {
-  const correct = state.currentQuestion?.correctIndex === index;
+  const correct = state.currentQuestion.correctIndex === index;
 
   if (correct) {
     state.xp += XP_PER_CORRECT;
+
     if (state.xp >= XP_PER_LEVEL) {
-      state.level++;
+      state.level += 1;
       state.xp = 0;
     }
   } else if (state.mode === "challenge") {
-    state.lives--;
-    if (state.lives <= 0) return endChallenge();
+    state.lives -= 1;
+    if (state.lives <= 0) {
+      endChallenge();
+      return;
+    }
   }
 
-  safeSetText(explanationEl, state.currentQuestion?.explanation || "");
+  explanationEl.textContent = state.currentQuestion.explanation || "";
 
-  state.questionIndex++;
+  state.questionIndex += 1;
   saveState();
   updateHUD();
 
-  setTimeout(renderQuestion, 700);
+  setTimeout(() => {
+    renderQuestion();
+  }, 1000);
 }
 
 /* =========================
-   MODOS
+   MODOS DE JOGO
 ========================= */
 
 function setMode(mode) {
   state.mode = mode;
   state.questionIndex = 0;
 
-  clearInterval(challengeTimer);
+  // limpa timer do desafio se estiver rolando
+  if (challengeTimer) {
+    clearInterval(challengeTimer);
+    challengeTimer = null;
+  }
 
-  if (mode === "challenge") startChallenge();
+  if (mode === "challenge") {
+    startChallenge();
+  } else {
+    timeLeft = CHALLENGE_DURATION;
+    state.lives = CHALLENGE_LIVES_START;
+  }
 
   saveState();
   updateHUD();
@@ -218,15 +211,21 @@ function startChallenge() {
   state.lives = CHALLENGE_LIVES_START;
 
   challengeTimer = setInterval(() => {
-    timeLeft--;
+    timeLeft -= 1;
     updateHUD();
 
-    if (timeLeft <= 0) endChallenge();
+    if (timeLeft <= 0) {
+      endChallenge();
+    }
   }, 1000);
 }
 
 function endChallenge() {
-  clearInterval(challengeTimer);
+  if (challengeTimer) {
+    clearInterval(challengeTimer);
+    challengeTimer = null;
+  }
+
   alert("Fim do desafio! 💪");
   setMode("classic");
 }
@@ -235,11 +234,18 @@ function endChallenge() {
    EVENTOS
 ========================= */
 
-// só registra se existir no HTML
-if (btnClassic) btnClassic.addEventListener("click", () => setMode("classic"));
-if (btnIA) btnIA.addEventListener("click", () => setMode("ia"));
-if (btnChallenge)
+// só registra se existir no HTML (evita erro em páginas sem esses botões)
+if (btnClassic) {
+  btnClassic.addEventListener("click", () => setMode("classic"));
+}
+
+if (btnIA) {
+  btnIA.addEventListener("click", () => setMode("ia"));
+}
+
+if (btnChallenge) {
   btnChallenge.addEventListener("click", () => setMode("challenge"));
+}
 
 /* =========================
    INIT
