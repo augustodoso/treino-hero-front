@@ -149,15 +149,34 @@ function loadState() {
 ========================= */
 
 function updateHUD() {
-  // HUD principal
-  if (levelEl) levelEl.textContent = state.level;
-
-  if (xpTextEl) xpTextEl.textContent = `${state.xp} / ${XP_PER_LEVEL}`;
-
-  if (xpFillEl) {
-    const pct = Math.min(100, (state.xp / XP_PER_LEVEL) * 100);
-    xpFillEl.style.width = `${pct}%`;
+  // Garante que as refs do DOM existem
+  if (
+    !levelEl ||
+    !xpTextEl ||
+    !xpFillEl ||
+    !correctEl ||
+    !bestXpEl ||
+    !challengeHudEl ||
+    !chTimerEl ||
+    !chLivesEl ||
+    !chStreakEl ||
+    !chBestStreakEl
+  ) {
+    setupDomRefs();
   }
+
+  // Se ainda assim não tiver os elementos básicos, não quebra o app
+  if (!levelEl || !xpTextEl || !xpFillEl) {
+    console.warn("[Treino Hero] HUD principal não encontrado.");
+    return;
+  }
+
+  // HUD principal
+  levelEl.textContent = state.level;
+  xpTextEl.textContent = `${state.xp} / ${XP_PER_LEVEL}`;
+
+  const pct = Math.min(100, (state.xp / XP_PER_LEVEL) * 100);
+  xpFillEl.style.width = `${pct}%`;
 
   if (correctEl) correctEl.textContent = state.correct;
   if (bestXpEl) bestXpEl.textContent = state.bestXp;
@@ -273,7 +292,7 @@ function handleAnswer(index) {
     if (state.xp >= XP_PER_LEVEL) {
       state.level += 1;
       state.xp = 0;
-      // poderia mostrar o badge aqui
+      // Aqui você pode disparar o LEVEL UP badge
       // console.log("LEVEL UP!");
     }
 
