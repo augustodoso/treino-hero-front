@@ -46,7 +46,6 @@ let timeLeft = CHALLENGE_DURATION;
 
 /* =========================
    REFERÊNCIAS DO DOM
-   (preenchidas depois do DOM pronto)
 ========================= */
 
 // HUD principal
@@ -149,37 +148,32 @@ function loadState() {
 ========================= */
 
 function updateHUD() {
-  // Garante que as refs do DOM existem
-  if (
-    !levelEl ||
-    !xpTextEl ||
-    !xpFillEl ||
-    !correctEl ||
-    !bestXpEl ||
-    !challengeHudEl ||
-    !chTimerEl ||
-    !chLivesEl ||
-    !chStreakEl ||
-    !chBestStreakEl
-  ) {
+  // Garante que as refs existem (se vieram null por algum motivo)
+  if (!levelEl && !xpTextEl && !xpFillEl) {
     setupDomRefs();
   }
 
-  // Se ainda assim não tiver os elementos básicos, não quebra o app
-  if (!levelEl || !xpTextEl || !xpFillEl) {
-    console.warn("[Treino Hero] HUD principal não encontrado.");
-    return;
+  // HUD principal
+  if (levelEl) {
+    levelEl.textContent = state.level;
   }
 
-  // HUD principal
-  levelEl.textContent = state.level;
-  xpTextEl.textContent = `${state.xp} / ${XP_PER_LEVEL}`;
+  if (xpTextEl) {
+    xpTextEl.textContent = `${state.xp} / ${XP_PER_LEVEL}`;
+  }
 
-  const pct = Math.min(100, (state.xp / XP_PER_LEVEL) * 100);
-  xpFillEl.style.width = `${pct}%`;
+  if (xpFillEl) {
+    const pct = Math.min(100, (state.xp / XP_PER_LEVEL) * 100);
+    xpFillEl.style.width = `${pct}%`;
+  }
 
-  if (correctEl) correctEl.textContent = state.correct;
-  if (bestXpEl) bestXpEl.textContent = state.bestXp;
+  if (correctEl) {
+    correctEl.textContent = state.correct;
+  }
+
+  if (bestXpEl) {
+    bestXpEl.textContent = state.bestXp;
+  }
 
   // HUD desafio
   if (challengeHudEl) {
@@ -447,12 +441,11 @@ function initGame() {
   renderQuestion();
 }
 
-// Como o script está no final do body, o DOM já está pronto,
-// mas para garantir:
-window.addEventListener("DOMContentLoaded", () => {
+// Garante que tudo carregou antes de iniciar
+window.onload = () => {
   try {
     initGame();
   } catch (err) {
     console.error("Erro na inicialização do Treino Hero:", err);
   }
-});
+};
