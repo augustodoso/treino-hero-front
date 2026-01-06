@@ -5,47 +5,43 @@ import { QUIZ } from "./quiz.js";
    CONFIGURAÇÕES GERAIS
 ========================= */
 
-// Detecta ambiente (local x deploy)
+// Detecta ambiente (local x produção)
 const isLocal =
   location.hostname === "127.0.0.1" || location.hostname === "localhost";
 
-// URL do backend (IA)
+// URL do backend para o modo IA
 const API_URL = isLocal
   ? "http://127.0.0.1:8000/generate-question"
   : "https://treino-hero-ia-backend.onrender.com/generate-question";
 
-// Configurações de XP / Level / Desafio
+// Regras de XP / Level / Desafio
 const XP_PER_CORRECT = 10;
 const XP_PER_LEVEL = 100;
 const CHALLENGE_DURATION = 60; // segundos
 const CHALLENGE_LIVES_START = 3;
 
-// Storage
-const STORAGE_KEY = "treinoHero_stats";
-
 /* =========================
    ESTADO GLOBAL
 ========================= */
 
-const DEFAULT_STATE = {
-  mode: "classic",      // classic | ia | challenge
+const initialState = {
+  mode: "classic",         // classic | ia | challenge
   level: 1,
   xp: 0,
   energy: 10,
   lives: CHALLENGE_LIVES_START,
   questionIndex: 0,
   currentQuestion: null,
-  streak: 0,
-  bestStreak: 0,
 };
 
-let state = { ...DEFAULT_STATE };
-let timeLeft = CHALLENGE_DURATION;
+let state = { ...initialState };
+
 let challengeTimer = null;
+let timeLeft = CHALLENGE_DURATION;
 
 /* =========================
-   REFERÊNCIAS DE DOM
-   (serão preenchidas no init)
+   REFERÊNCIAS DO DOM
+   (preenchidas só depois do DOM pronto)
 ========================= */
 
 let questionEl;
@@ -62,44 +58,88 @@ let hudEnergy;
 let hudLives;
 let hudTimer;
 
+/**
+ * Busca os elementos do DOM depois do carregamento.
+ * Se algum não existir, só registra erro no console (não quebra o jogo).
+ */
+function setupDomRefs() {
+  questionEl = document.getElementById("question");
+  choicesEl = document.getElementById("choices");
+  explanationEl = document.getElementById("explanation");
+
+  btnClassic = document.getElementById("mode-classic");
+  btnIA = document.getElementById("mode-ia");
+  btnChallenge = document.getElementById("mode-challenge");
+
+  hudLevel = document.getElementById("hud-level");
+  hudXP = document.getElementById("hud-xp");
+  hudEnergy = document.getElementById("hud-energy");
+  hudLives = document.getElementById("hud-lives");
+  hudTimer = document.getElementById("hud-timer");
+
+  // Debug leve: se algo importante não existir, avisa
+  if (!questionEl || !choicesEl) {
+    console.warn(
+      "[Treino Hero] Elementos principais não encontrados (question / choices). " +
+        "Confere se os IDs existem no index.html."
+    );
+  }
+}
+
 /* =========================
-   STORAGE
+   PERSISTÊNCIA (LOCALSTORAGE)
 ========================= */
 
 function saveState() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem("treinoHero", JSON.stringify(state));
   } catch (err) {
-    console.warn("Não foi possível salvar no localStorage:", err);
+    console.warn("Não foi possível salvar o estado:", err);
   }
 }
 
 function loadState() {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) return;
-    const parsed = JSON.parse(saved);
-    // Faz merge para garantir que nada fique undefined
-    state = { ...DEFAULT_STATE, ...parsed };
+    const saved = localStorage.getItem("treinoHero");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+
+      // Faz um merge seguro com o estado inicial
+      state = { ...initialState, ...parsed };
+    }
   } catch (err) {
-    console.warn("Não foi possível carregar estado salvo:", err);
-    state = { ...DEFAULT_STATE };
+    console.warn("Não foi possível carregar o estado salvo:", err);
+    state = { ...initialState };
   }
 }
 
 /* =========================
-   HUD
+   HUD (LEVEL / XP / ENERGIA / VIDAS / TEMPO)
 ========================= */
 
 function updateHUD() {
-  try {
-    if (hudLevel) hudLevel.textContent = state.level;
-    if (hudXP) hudXP.textContent = state.xp;
-    if (hudEnergy) hudEnergy.textContent = state.energy;
-    if (hudLives) hudLives.textContent = state.lives;
-    if (hudTimer) hudTimer.textContent = timeLeft;
-  } catch (err) {
-    console.error("Erro ao atualizar HUD:", err);
+  // Cada campo só é atualizado se o elemento existir,
+  // assim não quebra se algum ID estiver diferente no HTML.
+
+  if (hudLevel) {
+    hudLevel.textContent = state.level;
+  }
+
+  if (hudXP) {
+    hudXP.textContent = `${state.xp} / ${XP_PER_LEVEL}`;
+  }
+
+  if (hudEnergy) {
+    hudEnergy.textContent = state.energy;
+  }
+
+  if (hudLives) {
+    hudLives.textContent = state.lives;
+  }
+
+  if (hudTimer) {
+    hudTimer.textContent =
+      state.mode === "challenge" ? `${timeLeft}s` : "--";
   }
 }
 
@@ -108,20 +148,23 @@ function updateHUD() {
 ========================= */
 
 function getClassicQuestion() {
-  // garante que sempre caia dentro do array
   const index = state.questionIndex % QUIZ.length;
   return QUIZ[index];
 }
 
 async function getIAQuestion() {
   try {
-    const res = await fetch(API_URL, { method: "POST" });
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic: "fisiologia", difficulty: "medium" }),
+    });
 
-    if (!res.ok) {
-      throw new Error("Erro ao chamar backend IA");
+    if (!response.ok) {
+      throw new Error(`Erro do backend (${response.status})`);
     }
 
-    const data = await res.json();
+    const data = await response.json();
 
     return {
       question: data.question,
@@ -130,8 +173,8 @@ async function getIAQuestion() {
       explanation: data.explanation || "",
     };
   } catch (err) {
-    console.error("Erro ao buscar pergunta IA, caindo para pergunta local:", err);
-    // fallback para pergunta local pra não quebrar o jogo
+    console.error("Erro ao buscar pergunta IA:", err);
+    alert("Não consegui falar com o backend da IA. Usando pergunta clássica.");
     return getClassicQuestion();
   }
 }
@@ -141,38 +184,39 @@ async function getIAQuestion() {
 ========================= */
 
 async function renderQuestion() {
-  try {
-    if (!questionEl || !choicesEl || !explanationEl) {
-      console.warn("Elementos de pergunta não encontrados no DOM.");
-      return;
-    }
-
-    explanationEl.textContent = "";
-    choicesEl.innerHTML = "";
-
-    if (state.mode === "ia") {
-      state.currentQuestion = await getIAQuestion();
-    } else {
-      state.currentQuestion = getClassicQuestion();
-    }
-
-    if (!state.currentQuestion) {
-      console.warn("Nenhuma pergunta disponível.");
-      return;
-    }
-
-    questionEl.textContent = state.currentQuestion.question || "Pergunta indisponível";
-
-    state.currentQuestion.options.forEach((opt, index) => {
-      const btn = document.createElement("button");
-      btn.textContent = opt;
-      btn.className = "choice-btn";
-      btn.addEventListener("click", () => handleAnswer(index));
-      choicesEl.appendChild(btn);
-    });
-  } catch (err) {
-    console.error("Erro ao renderizar pergunta:", err);
+  if (!questionEl || !choicesEl) {
+    console.warn(
+      "[Treino Hero] Não há elementos de pergunta/opções no DOM."
+    );
+    return;
   }
+
+  explanationEl && (explanationEl.textContent = "");
+  choicesEl.innerHTML = "";
+
+  // Escolhe fonte de pergunta
+  if (state.mode === "ia") {
+    state.currentQuestion = await getIAQuestion();
+  } else {
+    state.currentQuestion = getClassicQuestion();
+  }
+
+  const q = state.currentQuestion;
+
+  if (!q) {
+    questionEl.textContent = "Não há perguntas disponíveis.";
+    return;
+  }
+
+  questionEl.textContent = q.question;
+
+  q.options.forEach((opt, index) => {
+    const btn = document.createElement("button");
+    btn.textContent = opt;
+    btn.className = "choice-btn";
+    btn.addEventListener("click", () => handleAnswer(index));
+    choicesEl.appendChild(btn);
+  });
 }
 
 /* =========================
@@ -180,50 +224,37 @@ async function renderQuestion() {
 ========================= */
 
 function handleAnswer(index) {
-  try {
-    if (!state.currentQuestion) return;
+  const q = state.currentQuestion;
+  if (!q) return;
 
-    const correct = state.currentQuestion.correctIndex === index;
+  const correct = q.correctIndex === index;
 
-    if (correct) {
-      state.xp += XP_PER_CORRECT;
-      state.streak += 1;
-      if (state.streak > state.bestStreak) {
-        state.bestStreak = state.streak;
-      }
-
-      if (state.xp >= XP_PER_LEVEL) {
-        state.level += 1;
-        state.xp = 0;
-      }
-    } else {
-      state.streak = 0;
-
-      if (state.mode === "challenge") {
-        state.lives -= 1;
-        if (state.lives <= 0) {
-          endChallenge();
-          return;
-        }
-      }
+  if (correct) {
+    state.xp += XP_PER_CORRECT;
+    if (state.xp >= XP_PER_LEVEL) {
+      state.level += 1;
+      state.xp = 0;
     }
-
-    if (explanationEl) {
-      explanationEl.textContent =
-        state.currentQuestion.explanation || "";
+  } else if (state.mode === "challenge") {
+    state.lives -= 1;
+    if (state.lives <= 0) {
+      endChallenge();
+      return;
     }
-
-    state.questionIndex += 1;
-    saveState();
-    updateHUD();
-
-    // pequena pausa para o jogador ver o feedback
-    setTimeout(() => {
-      renderQuestion();
-    }, 800);
-  } catch (err) {
-    console.error("Erro ao processar resposta:", err);
   }
+
+  if (explanationEl) {
+    explanationEl.textContent = q.explanation || "";
+  }
+
+  state.questionIndex += 1;
+  saveState();
+  updateHUD();
+
+  // Próxima pergunta depois de 1s
+  setTimeout(() => {
+    renderQuestion();
+  }, 1000);
 }
 
 /* =========================
@@ -231,41 +262,33 @@ function handleAnswer(index) {
 ========================= */
 
 function setMode(mode) {
-  try {
-    state.mode = mode;
-    state.questionIndex = 0;
-    state.streak = 0;
+  state.mode = mode;
+  state.questionIndex = 0;
 
-    if (challengeTimer) {
-      clearInterval(challengeTimer);
-      challengeTimer = null;
-    }
+  // Reseta desafio se sair / entrar
+  clearInterval(challengeTimer);
+  timeLeft = CHALLENGE_DURATION;
+  state.lives = CHALLENGE_LIVES_START;
 
-    if (mode === "challenge") {
-      startChallenge();
-    } else {
-      // reset de coisas específicas do desafio
-      timeLeft = CHALLENGE_DURATION;
-      state.lives = CHALLENGE_LIVES_START;
-    }
-
-    saveState();
-    updateHUD();
-    renderQuestion();
-  } catch (err) {
-    console.error("Erro ao mudar modo:", err);
+  if (mode === "challenge") {
+    startChallenge();
   }
+
+  saveState();
+  updateHUD();
+  renderQuestion();
 }
 
 function startChallenge() {
   timeLeft = CHALLENGE_DURATION;
   state.lives = CHALLENGE_LIVES_START;
 
-  updateHUD();
-
   challengeTimer = setInterval(() => {
     timeLeft -= 1;
-    if (timeLeft < 0) timeLeft = 0;
+    if (timeLeft < 0) {
+      timeLeft = 0;
+    }
+
     updateHUD();
 
     if (timeLeft <= 0) {
@@ -275,89 +298,46 @@ function startChallenge() {
 }
 
 function endChallenge() {
-  if (challengeTimer) {
-    clearInterval(challengeTimer);
-    challengeTimer = null;
-  }
-  alert("Fim do desafio! 💪");
+  clearInterval(challengeTimer);
+  alert("Fim do modo desafio! 💪");
   setMode("classic");
 }
 
 /* =========================
-   INICIALIZAÇÃO (DOM READY)
+   EVENTOS DOS BOTÕES
 ========================= */
 
-function initGame() {
-  // Elementos de pergunta
-  questionEl = document.getElementById("question");
-  choicesEl = document.getElementById("choices");
-  explanationEl = document.getElementById("explanation");
-
-  if (!questionEl || !choicesEl || !explanationEl) {
-    console.warn(
-      "Alguns elementos do quiz (#question, #choices, #explanation) não foram encontrados. Verifique os IDs no index.html."
-    );
-  }
-
-  // Botões de modo
-  btnClassic = document.getElementById("mode-classic");
-  btnIA = document.getElementById("mode-ia");
-  btnChallenge = document.getElementById("mode-challenge");
-
+function setupEvents() {
   if (btnClassic) {
     btnClassic.addEventListener("click", () => setMode("classic"));
-  } else {
-    console.warn("Botão #mode-classic não encontrado.");
   }
 
   if (btnIA) {
     btnIA.addEventListener("click", () => setMode("ia"));
-  } else {
-    console.warn("Botão #mode-ia não encontrado.");
   }
 
   if (btnChallenge) {
     btnChallenge.addEventListener("click", () => setMode("challenge"));
-  } else {
-    console.warn("Botão #mode-challenge não encontrado.");
   }
+}
 
-  // HUD – tenta vários IDs, mas sempre protege com if
-  hudLevel =
-    document.getElementById("hud-level") ||
-    document.getElementById("level-value") ||
-    document.getElementById("level");
+/* =========================
+   INICIALIZAÇÃO
+========================= */
 
-  hudXP =
-    document.getElementById("hud-xp") ||
-    document.getElementById("xp-value") ||
-    document.getElementById("xp");
-
-  hudEnergy =
-    document.getElementById("hud-energy") ||
-    document.getElementById("energy-value") ||
-    document.getElementById("energy");
-
-  hudLives =
-    document.getElementById("hud-lives") ||
-    document.getElementById("lives-value") ||
-    document.getElementById("lives");
-
-  hudTimer =
-    document.getElementById("hud-timer") ||
-    document.getElementById("timer-value") ||
-    document.getElementById("timer");
-
+function initGame() {
+  setupDomRefs();  // pega os elementos DEPOIS do DOM pronto
   loadState();
   updateHUD();
+  setupEvents();
   renderQuestion();
 }
 
-// Só roda depois do DOM estar pronto
+// Garante que tudo só rode depois do DOM pronto
 window.addEventListener("DOMContentLoaded", () => {
   try {
     initGame();
   } catch (err) {
-    console.error("Erro na inicialização do jogo:", err);
+    console.error("Erro na inicialização do Treino Hero:", err);
   }
 });
