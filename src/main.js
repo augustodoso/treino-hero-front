@@ -5,19 +5,16 @@ import { QUIZ } from "./quiz.js";
    CONFIGURAÇÕES GERAIS
 ========================= */
 
-// Detecta ambiente (local x produção)
 const isLocal =
   location.hostname === "127.0.0.1" || location.hostname === "localhost";
 
-// URL do backend para o modo IA
 const API_URL = isLocal
   ? "http://127.0.0.1:8000/generate-question"
   : "https://treino-hero-ia-backend.onrender.com/generate-question";
 
-// Regras de XP / Level / Desafio
 const XP_PER_CORRECT = 10;
 const XP_PER_LEVEL = 100;
-const CHALLENGE_DURATION = 60; // segundos
+const CHALLENGE_DURATION = 60;
 const CHALLENGE_LIVES_START = 3;
 
 /* =========================
@@ -48,71 +45,38 @@ let timeLeft = CHALLENGE_DURATION;
    REFERÊNCIAS DO DOM
 ========================= */
 
-// HUD principal
-let levelEl;
-let xpTextEl;
-let xpFillEl;
-let correctEl;
-let bestXpEl;
-
-// HUD desafio
-let challengeHudEl;
-let chTimerEl;
-let chLivesEl;
-let chStreakEl;
-let chBestStreakEl;
-
-// Pergunta / opções / explicação
-let questionEl;
-let choicesEl;
-let explanationEl;
-
-// Botões de modo
-let btnClassic;
-let btnIA;
-let btnChallenge;
-let btnRanking;
-
-// Dificuldade e IA
-let diffButtons;
-let iaThemeSelect;
-
-// Modal ranking
-let rankingModal;
-let closeRankingBtn;
-let rankingList;
+let levelEl, xpTextEl, xpFillEl, correctEl, bestXpEl;
+let challengeHudEl, chTimerEl, chLivesEl, chStreakEl, chBestStreakEl;
+let questionEl, choicesEl, explanationEl;
+let btnClassic, btnIA, btnChallenge, btnRanking;
+let diffButtons, iaThemeSelect;
+let rankingModal, closeRankingBtn, rankingList;
 
 function setupDomRefs() {
-  // HUD principal
   levelEl = document.getElementById("hud-level-value");
   xpTextEl = document.getElementById("hud-xp-text");
   xpFillEl = document.getElementById("hud-xp-fill");
   correctEl = document.getElementById("hud-correct");
   bestXpEl = document.getElementById("hud-best-xp");
 
-  // HUD desafio
   challengeHudEl = document.getElementById("challenge-hud");
   chTimerEl = document.getElementById("ch-timer");
   chLivesEl = document.getElementById("ch-lives");
   chStreakEl = document.getElementById("ch-streak");
   chBestStreakEl = document.getElementById("ch-best-streak");
 
-  // Pergunta
   questionEl = document.getElementById("question");
   choicesEl = document.getElementById("choices");
   explanationEl = document.getElementById("explanation");
 
-  // Modo de jogo
   btnClassic = document.getElementById("mode-classic");
   btnIA = document.getElementById("mode-ia");
   btnChallenge = document.getElementById("mode-challenge");
   btnRanking = document.getElementById("btn-ranking");
 
-  // Dificuldade / IA
   diffButtons = Array.from(document.querySelectorAll(".difficulty-tab"));
   iaThemeSelect = document.getElementById("ia-theme");
 
-  // Ranking
   rankingModal = document.getElementById("ranking-modal");
   closeRankingBtn = document.getElementById("close-ranking");
   rankingList = document.getElementById("ranking-list");
@@ -144,50 +108,82 @@ function loadState() {
 }
 
 /* =========================
-   HUD (LEVEL / XP / DESAFIO)
+   HUD
 ========================= */
 
 function updateHUD() {
-  // Se por algum motivo ainda está sem refs, tenta pegar de novo
-  if (!levelEl && !xpTextEl && !xpFillEl) {
+  try {
     setupDomRefs();
-  }
 
-  // HUD principal
-  if (levelEl) {
-    levelEl.textContent = state.level;
-  }
-
-  if (xpTextEl) {
-    xpTextEl.textContent = `${state.xp} / ${XP_PER_LEVEL}`;
-  }
-
-  if (xpFillEl) {
-    const pct = Math.min(100, (state.xp / XP_PER_LEVEL) * 100);
-    xpFillEl.style.width = `${pct}%`;
-  }
-
-  if (correctEl) {
-    correctEl.textContent = state.correct;
-  }
-
-  if (bestXpEl) {
-    bestXpEl.textContent = state.bestXp;
-  }
-
-  // HUD desafio
-  if (challengeHudEl) {
-    if (state.mode === "challenge") {
-      challengeHudEl.classList.add("active");
-    } else {
-      challengeHudEl.classList.remove("active");
+    if (levelEl) levelEl.textContent = state.level;
+    if (xpTextEl) xpTextEl.textContent = `${state.xp} / ${XP_PER_LEVEL}`;
+    if (xpFillEl) {
+      const pct = Math.min(100, (state.xp / XP_PER_LEVEL) * 100);
+      xpFillEl.style.width = `${pct}%`;
     }
-  }
 
-  if (chTimerEl) chTimerEl.textContent = `${timeLeft}s`;
-  if (chLivesEl) chLivesEl.textContent = "❤".repeat(state.lives);
-  if (chStreakEl) chStreakEl.textContent = state.streak;
-  if (chBestStreakEl) chBestStreakEl.textContent = state.bestStreak;
+    if (correctEl) correctEl.textContent = state.correct;
+    if (bestXpEl) bestXpEl.textContent = state.bestXp;
+
+    if (challengeHudEl) {
+      if (state.mode === "challenge") challengeHudEl.classList.add("active");
+      else challengeHudEl.classList.remove("active");
+    }
+
+    if (chTimerEl) chTimerEl.textContent = `${timeLeft}s`;
+    if (chLivesEl) chLivesEl.textContent = "❤".repeat(state.lives);
+    if (chStreakEl) chStreakEl.textContent = state.streak;
+    if (chBestStreakEl) chBestStreakEl.textContent = state.bestStreak;
+  } catch (err) {
+    console.error("[Treino Hero] Erro no updateHUD:", err);
+  }
+}
+
+/* =========================
+   NORMALIZAÇÃO DE PERGUNTA
+   (aceita vários formatos do quiz.js)
+========================= */
+
+function normalizeQuestion(raw) {
+  if (!raw || typeof raw !== "object") return null;
+
+  // texto
+  const question =
+    raw.question ?? raw.pergunta ?? raw.title ?? raw.enunciado ?? null;
+
+  // opções
+  const options =
+    raw.options ??
+    raw.choices ??
+    raw.alternatives ??
+    raw.alternativas ??
+    raw.answers ??
+    null;
+
+  // índice correto
+  const correctIndex =
+    raw.correctIndex ??
+    raw.correct_index ??
+    raw.answerIndex ??
+    raw.correct ??
+    raw.correta ??
+    null;
+
+  // explicação
+  const explanation = raw.explanation ?? raw.explicacao ?? raw.justificativa ?? "";
+
+  if (!question || !Array.isArray(options) || options.length < 2) return null;
+
+  // tenta garantir um número válido
+  const ci = Number(correctIndex);
+  const fixedCorrectIndex = Number.isFinite(ci) ? ci : 0;
+
+  return {
+    question,
+    options,
+    correctIndex: fixedCorrectIndex,
+    explanation,
+  };
 }
 
 /* =========================
@@ -195,8 +191,14 @@ function updateHUD() {
 ========================= */
 
 function getClassicQuestion() {
+  // valida quiz
+  if (!Array.isArray(QUIZ) || QUIZ.length === 0) {
+    return null;
+  }
+
   const index = state.questionIndex % QUIZ.length;
-  return QUIZ[index];
+  const raw = QUIZ[index];
+  return normalizeQuestion(raw);
 }
 
 async function getIAQuestion() {
@@ -210,58 +212,72 @@ async function getIAQuestion() {
       }),
     });
 
-    if (!response.ok) {
-      throw new Error(`Erro do backend (${response.status})`);
-    }
+    if (!response.ok) throw new Error(`Erro do backend (${response.status})`);
 
     const data = await response.json();
 
-    return {
+    return normalizeQuestion({
       question: data.question,
       options: data.options,
       correctIndex: data.correct_index,
       explanation: data.explanation || "",
-    };
+    });
   } catch (err) {
     console.error("Erro ao buscar pergunta IA:", err);
-    alert("Não consegui falar com o backend da IA. Usando pergunta clássica.");
-    return getClassicQuestion();
+    return null;
   }
 }
 
 /* =========================
-   RENDERIZAÇÃO DA PERGUNTA
+   RENDERIZAÇÃO
 ========================= */
 
+function showErrorOnScreen(msg) {
+  if (!questionEl || !choicesEl) return;
+  questionEl.textContent = msg;
+  choicesEl.innerHTML = "";
+}
+
 async function renderQuestion() {
+  setupDomRefs();
+
   if (!questionEl || !choicesEl) {
-    console.warn("[Treino Hero] Elementos de pergunta não encontrados.");
+    console.warn("[Treino Hero] Elementos #question/#choices não encontrados.");
     return;
   }
 
-  // reseta texto
   questionEl.textContent = "";
   choicesEl.innerHTML = "";
   if (explanationEl) explanationEl.textContent = "";
 
-  // escolhe fonte
+  let q = null;
+
   if (state.mode === "ia") {
-    state.currentQuestion = await getIAQuestion();
+    showErrorOnScreen("Acordando a IA... (pode demorar alguns segundos)");
+    q = await getIAQuestion();
+
+    if (!q) {
+      showErrorOnScreen("IA indisponível agora. Voltando pro modo clássico.");
+      state.mode = "classic";
+      q = getClassicQuestion();
+    }
   } else {
-    state.currentQuestion = getClassicQuestion();
+    q = getClassicQuestion();
   }
 
-  const q = state.currentQuestion;
   if (!q) {
-    questionEl.textContent = "Não há perguntas disponíveis.";
+    showErrorOnScreen(
+      "Nenhuma pergunta disponível. Verifique se src/quiz.js exporta QUIZ corretamente."
+    );
     return;
   }
 
+  state.currentQuestion = q;
   questionEl.textContent = q.question;
 
   q.options.forEach((opt, index) => {
     const btn = document.createElement("button");
-    btn.textContent = opt;
+    btn.textContent = String(opt);
     btn.className = "choice-btn";
     btn.addEventListener("click", () => handleAnswer(index));
     choicesEl.appendChild(btn);
@@ -269,7 +285,7 @@ async function renderQuestion() {
 }
 
 /* =========================
-   RESPOSTA DO USUÁRIO
+   RESPOSTA
 ========================= */
 
 function handleAnswer(index) {
@@ -288,16 +304,10 @@ function handleAnswer(index) {
       state.xp = 0;
     }
 
-    if (state.xp > state.bestXp) {
-      state.bestXp = state.xp;
-    }
-
-    if (state.streak > state.bestStreak) {
-      state.bestStreak = state.streak;
-    }
+    if (state.xp > state.bestXp) state.bestXp = state.xp;
+    if (state.streak > state.bestStreak) state.bestStreak = state.streak;
   } else {
     state.streak = 0;
-
     if (state.mode === "challenge") {
       state.lives -= 1;
       if (state.lives <= 0) {
@@ -307,21 +317,17 @@ function handleAnswer(index) {
     }
   }
 
-  if (explanationEl) {
-    explanationEl.textContent = q.explanation || "";
-  }
+  if (explanationEl) explanationEl.textContent = q.explanation || "";
 
   state.questionIndex += 1;
   saveState();
   updateHUD();
 
-  setTimeout(() => {
-    renderQuestion();
-  }, 800);
+  setTimeout(() => renderQuestion(), 600);
 }
 
 /* =========================
-   MODOS DE JOGO
+   MODOS
 ========================= */
 
 function setMode(mode) {
@@ -333,9 +339,7 @@ function setMode(mode) {
   timeLeft = CHALLENGE_DURATION;
   state.lives = CHALLENGE_LIVES_START;
 
-  if (mode === "challenge") {
-    startChallenge();
-  }
+  if (mode === "challenge") startChallenge();
 
   saveState();
   updateHUD();
@@ -352,9 +356,7 @@ function startChallenge() {
 
     updateHUD();
 
-    if (timeLeft <= 0) {
-      endChallenge();
-    }
+    if (timeLeft <= 0) endChallenge();
   }, 1000);
 }
 
@@ -365,7 +367,7 @@ function endChallenge() {
 }
 
 /* =========================
-   DIFICULDADE E IA
+   DIFICULDADE / TEMA IA
 ========================= */
 
 function setupDifficulty() {
@@ -393,7 +395,7 @@ function setupIATheme() {
 }
 
 /* =========================
-   RANKING (simples dummy)
+   RANKING
 ========================= */
 
 function setupRanking() {
@@ -414,36 +416,36 @@ function setupRanking() {
 }
 
 /* =========================
-   EVENTOS DOS BOTÕES
+   EVENTOS
 ========================= */
 
 function setupModeButtons() {
   if (btnClassic) btnClassic.addEventListener("click", () => setMode("classic"));
   if (btnIA) btnIA.addEventListener("click", () => setMode("ia"));
-  if (btnChallenge)
-    btnChallenge.addEventListener("click", () => setMode("challenge"));
+  if (btnChallenge) btnChallenge.addEventListener("click", () => setMode("challenge"));
 }
 
 /* =========================
-   INICIALIZAÇÃO
+   INIT
 ========================= */
 
 function initGame() {
   setupDomRefs();
   loadState();
+
   setupModeButtons();
   setupDifficulty();
   setupIATheme();
   setupRanking();
+
   updateHUD();
   renderQuestion();
 }
 
-// Garante que tudo carregou antes de iniciar
-window.onload = () => {
+document.addEventListener("DOMContentLoaded", () => {
   try {
     initGame();
   } catch (err) {
     console.error("Erro na inicialização do Treino Hero:", err);
   }
-};
+});
