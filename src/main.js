@@ -53,33 +53,72 @@ let diffButtons, iaThemeSelect;
 let rankingModal, closeRankingBtn, rankingList;
 
 function setupDomRefs() {
+  // HUD
   levelEl = document.getElementById("hud-level-value");
   xpTextEl = document.getElementById("hud-xp-text");
   xpFillEl = document.getElementById("hud-xp-fill");
   correctEl = document.getElementById("hud-correct");
   bestXpEl = document.getElementById("hud-best-xp");
 
+  // HUD desafio
   challengeHudEl = document.getElementById("challenge-hud");
   chTimerEl = document.getElementById("ch-timer");
   chLivesEl = document.getElementById("ch-lives");
   chStreakEl = document.getElementById("ch-streak");
   chBestStreakEl = document.getElementById("ch-best-streak");
 
+  // Pergunta
   questionEl = document.getElementById("question");
   choicesEl = document.getElementById("choices");
   explanationEl = document.getElementById("explanation");
 
+  // Botões de modo
   btnClassic = document.getElementById("mode-classic");
   btnIA = document.getElementById("mode-ia");
   btnChallenge = document.getElementById("mode-challenge");
   btnRanking = document.getElementById("btn-ranking");
 
+  // Dificuldade e IA
   diffButtons = Array.from(document.querySelectorAll(".difficulty-tab"));
   iaThemeSelect = document.getElementById("ia-theme");
 
+  // Ranking modal
   rankingModal = document.getElementById("ranking-modal");
   closeRankingBtn = document.getElementById("close-ranking");
   rankingList = document.getElementById("ranking-list");
+}
+
+/* =========================
+   UI HELPERS (ACTIVE / ENABLE)
+========================= */
+
+function setActiveModeButton(mode) {
+  const btns = [btnClassic, btnIA, btnChallenge];
+  btns.forEach((b) => b && b.classList.remove("active"));
+
+  if (mode === "classic" && btnClassic) btnClassic.classList.add("active");
+  if (mode === "ia" && btnIA) btnIA.classList.add("active");
+  if (mode === "challenge" && btnChallenge) btnChallenge.classList.add("active");
+}
+
+function syncDifficultyUI() {
+  if (!diffButtons) return;
+  diffButtons.forEach((b) => b.classList.remove("active"));
+
+  const active = diffButtons.find((b) => b.dataset.diff === state.difficulty);
+  if (active) active.classList.add("active");
+}
+
+function toggleIAControls() {
+  const isIA = state.mode === "ia";
+
+  // Tema só faz sentido no modo IA
+  if (iaThemeSelect) iaThemeSelect.disabled = !isIA;
+
+  // Dificuldade: se você quer que só mude no IA, deixa assim:
+  if (diffButtons && diffButtons.length) {
+    diffButtons.forEach((b) => (b.disabled = !isIA));
+  }
 }
 
 /* =========================
@@ -141,17 +180,14 @@ function updateHUD() {
 
 /* =========================
    NORMALIZAÇÃO DE PERGUNTA
-   (aceita vários formatos do quiz.js)
 ========================= */
 
 function normalizeQuestion(raw) {
   if (!raw || typeof raw !== "object") return null;
 
-  // texto
   const question =
     raw.question ?? raw.pergunta ?? raw.title ?? raw.enunciado ?? null;
 
-  // opções
   const options =
     raw.options ??
     raw.choices ??
@@ -160,7 +196,6 @@ function normalizeQuestion(raw) {
     raw.answers ??
     null;
 
-  // índice correto
   const correctIndex =
     raw.correctIndex ??
     raw.correct_index ??
@@ -169,12 +204,11 @@ function normalizeQuestion(raw) {
     raw.correta ??
     null;
 
-  // explicação
-  const explanation = raw.explanation ?? raw.explicacao ?? raw.justificativa ?? "";
+  const explanation =
+    raw.explanation ?? raw.explicacao ?? raw.justificativa ?? "";
 
   if (!question || !Array.isArray(options) || options.length < 2) return null;
 
-  // tenta garantir um número válido
   const ci = Number(correctIndex);
   const fixedCorrectIndex = Number.isFinite(ci) ? ci : 0;
 
@@ -191,14 +225,10 @@ function normalizeQuestion(raw) {
 ========================= */
 
 function getClassicQuestion() {
-  // valida quiz
-  if (!Array.isArray(QUIZ) || QUIZ.length === 0) {
-    return null;
-  }
+  if (!Array.isArray(QUIZ) || QUIZ.length === 0) return null;
 
   const index = state.questionIndex % QUIZ.length;
-  const raw = QUIZ[index];
-  return normalizeQuestion(raw);
+  return normalizeQuestion(QUIZ[index]);
 }
 
 async function getIAQuestion() {
@@ -233,6 +263,7 @@ async function getIAQuestion() {
 ========================= */
 
 function showErrorOnScreen(msg) {
+  setupDomRefs();
   if (!questionEl || !choicesEl) return;
   questionEl.textContent = msg;
   choicesEl.innerHTML = "";
@@ -257,9 +288,10 @@ async function renderQuestion() {
     q = await getIAQuestion();
 
     if (!q) {
-      showErrorOnScreen("IA indisponível agora. Voltando pro modo clássico.");
-      state.mode = "classic";
-      q = getClassicQuestion();
+      showErrorOnScreen(
+        "IA indisponível agora (Render pode estar dormindo). Tente de novo em alguns segundos."
+      );
+      return;
     }
   } else {
     q = getClassicQuestion();
@@ -308,6 +340,7 @@ function handleAnswer(index) {
     if (state.streak > state.bestStreak) state.bestStreak = state.streak;
   } else {
     state.streak = 0;
+
     if (state.mode === "challenge") {
       state.lives -= 1;
       if (state.lives <= 0) {
@@ -342,6 +375,12 @@ function setMode(mode) {
   if (mode === "challenge") startChallenge();
 
   saveState();
+
+  // ✅ atualiza UI e controles
+  setActiveModeButton(mode);
+  toggleIAControls();
+  syncDifficultyUI();
+
   updateHUD();
   renderQuestion();
 }
@@ -375,12 +414,22 @@ function setupDifficulty() {
 
   diffButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
+      // se estiver travado fora do IA, não faz nada
+      if (btn.disabled) return;
+
       diffButtons.forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
+
       state.difficulty = btn.dataset.diff || "medium";
       saveState();
+
+      // ✅ se estiver no modo IA, recarrega pergunta
+      if (state.mode === "ia") renderQuestion();
     });
   });
+
+  // garante UI conforme estado atual
+  syncDifficultyUI();
 }
 
 function setupIATheme() {
@@ -389,8 +438,13 @@ function setupIATheme() {
   iaThemeSelect.value = state.iaTheme;
 
   iaThemeSelect.addEventListener("change", () => {
+    if (iaThemeSelect.disabled) return;
+
     state.iaTheme = iaThemeSelect.value;
     saveState();
+
+    // ✅ se estiver no modo IA, recarrega pergunta
+    if (state.mode === "ia") renderQuestion();
   });
 }
 
@@ -422,7 +476,8 @@ function setupRanking() {
 function setupModeButtons() {
   if (btnClassic) btnClassic.addEventListener("click", () => setMode("classic"));
   if (btnIA) btnIA.addEventListener("click", () => setMode("ia"));
-  if (btnChallenge) btnChallenge.addEventListener("click", () => setMode("challenge"));
+  if (btnChallenge)
+    btnChallenge.addEventListener("click", () => setMode("challenge"));
 }
 
 /* =========================
@@ -437,6 +492,11 @@ function initGame() {
   setupDifficulty();
   setupIATheme();
   setupRanking();
+
+  // ✅ sincroniza UI com estado salvo
+  setActiveModeButton(state.mode);
+  toggleIAControls();
+  syncDifficultyUI();
 
   updateHUD();
   renderQuestion();
